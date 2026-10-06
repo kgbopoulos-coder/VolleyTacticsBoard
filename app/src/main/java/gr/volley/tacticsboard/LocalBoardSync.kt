@@ -2,7 +2,8 @@ package gr.volley.tacticsboard
 
 import android.content.Context
 import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo\nimport android.net.wifi.WifiManager
+import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 import java.io.*
 import java.net.ServerSocket
 import java.net.Socket
@@ -11,7 +12,9 @@ import kotlin.concurrent.thread
 
 class LocalBoardSync(context: Context, private val listener: Listener) {
     interface Listener { fun onPeerState(connected: Boolean); fun onMessage(message: String) }
-    private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager\n    private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager\n    private var multicastLock: WifiManager.MulticastLock? = null
+    private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private var multicastLock: WifiManager.MulticastLock? = null
     private val serviceType = "_volleyboard._tcp."
     private val serviceName = "VolleyTacticsBoard-" + java.util.UUID.randomUUID().toString().take(8)
     private val clients = CopyOnWriteArrayList<Socket>()
