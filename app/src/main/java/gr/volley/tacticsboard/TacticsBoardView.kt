@@ -39,11 +39,26 @@ class TacticsBoardView(context: Context) : View(context) {
         canvas.drawPath(p,if(s.erase)erasePaint else drawPaint)
     }
     private fun drawCourt(canvas:Canvas){
-        val top=dp(20f);val bottom=height-toolbarHeight-dp(14f);val h=bottom-top;val cw=min(width-dp(28f),h*0.67f);val left=(width-cw)/2f;val right=left+cw
-        val rect=RectF(left,top,right,bottom);val fill=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(224,111,46);style=Paint.Style.FILL}
+        val margin=dp(14f);val top=dp(20f);val bottom=height-toolbarHeight-dp(14f)
+        val availableW=width-2f*margin;val availableH=bottom-top
+        val portrait=availableH>=availableW
+        val courtW:Float;val courtH:Float
+        if(portrait){
+            courtW=min(availableW,availableH*0.67f);courtH=min(availableH,courtW/0.67f)
+        }else{
+            courtW=min(availableW,availableH/0.67f);courtH=min(availableH,courtW*0.67f)
+        }
+        val left=(width-courtW)/2f;val courtTop=top+(availableH-courtH)/2f
+        val right=left+courtW;val courtBottom=courtTop+courtH
+        val rect=RectF(left,courtTop,right,courtBottom);val fill=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(224,111,46);style=Paint.Style.FILL}
         canvas.drawRoundRect(rect,dp(5f),dp(5f),fill);canvas.drawRect(rect,courtPaint)
-        val mid=(top+bottom)/2f;canvas.drawLine(left,mid,right,mid,courtPaint);val a=h/6f
-        canvas.drawLine(left,mid-a,right,mid-a,courtPaint);canvas.drawLine(left,mid+a,right,mid+a,courtPaint)
+        if(portrait){
+            val mid=(courtTop+courtBottom)/2f;canvas.drawLine(left,mid,right,mid,courtPaint);val a=courtH/6f
+            canvas.drawLine(left,mid-a,right,mid-a,courtPaint);canvas.drawLine(left,mid+a,right,mid+a,courtPaint)
+        }else{
+            val mid=(left+right)/2f;canvas.drawLine(mid,courtTop,mid,courtBottom,courtPaint);val a=courtW/6f
+            canvas.drawLine(mid-a,courtTop,mid-a,courtBottom,courtPaint);canvas.drawLine(mid+a,courtTop,mid+a,courtBottom,courtPaint)
+        }
     }
     private fun drawConnection(canvas:Canvas){
         val p=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=if(connected)Color.rgb(30,150,70) else Color.rgb(190,45,45);textSize=dp(10f);typeface=Typeface.DEFAULT_BOLD}
