@@ -8,9 +8,9 @@ import android.view.View
 import kotlin.math.min
 
 class TacticsBoardView(context: Context) : View(context) {
-    private data class Stroke(val points: List<PointF>, val erase: Boolean)
+    private data class Stroke(val points: List<PointF>, val erase: Boolean, val autoX: Boolean = false)
     private val strokes = mutableListOf<Stroke>()
-    private val current = mutableListOf<PointF>()
+    private val current = mutableListOf<PointF>()\n    private var pendingXIndex: Int? = null
     private var eraserMode = false
     private var connected = false
     var onSyncMessage: ((String) -> Unit)? = null
@@ -65,18 +65,54 @@ class TacticsBoardView(context: Context) : View(context) {
         when(e.action){
             MotionEvent.ACTION_DOWN->{current.clear();current.add(PointF(e.x,e.y));invalidate()}
             MotionEvent.ACTION_MOVE->{current.add(PointF(e.x,e.y));invalidate()}
-            MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{current.add(PointF(e.x,e.y));val s=Stroke(current.toList(),eraserMode);strokes.add(s);sendStroke(s);current.clear();invalidate()}
+            MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->{
+                current.add(PointF(e.x,e.y))
+                val fresh=Stroke(current.toList(),eraserMode)
+                if(!eraserMode && tryMakeSymmetricX(fresh)) {
+                    current.clear();invalidate();return true
+                }
+                strokes.add(fresh);sendStroke(fresh)
+                pendingXIndex=if(!eraserMode && isDiagonal(fresh)) strokes.lastIndex else null
+                current.clear();invalidate()
+            }
         };return true
     }
+    private fun bounds(s:Stroke):RectF{
+        var l=Float.MAX_VALUE;var t=Float.MAX_VALUE;var r=-Float.MAX_VALUE;var b=-Float.MAX_VALUE
+        s.points.forEach{l=minOf(l,it.x);t=minOf(t,it.y);r=maxOf(r,it.x);b=maxOf(b,it.y)}
+        return RectF(l,t,r,b)
+    }
+    private fun isDiagonal(s:Stroke):Boolean{
+        if(s.erase||s.points.size<2)return false
+        val q=bounds(s);if(q.width()<dp(12f)||q.height()<dp(12f))return false
+        val ratio=q.width()/q.height();return ratio in 0.45f..2.2f
+    }
+    private fun tryMakeSymmetricX(second:Stroke):Boolean{
+        val idx=pendingXIndex?:return false
+        if(idx !in strokes.indices||!isDiagonal(second)){pendingXIndex=null;return false}
+        val first=strokes[idx];val a=bounds(first);val b=bounds(second)
+        val cx1=a.centerX();val cy1=a.centerY();val cx2=b.centerX();val cy2=b.centerY()
+        val size=maxOf(a.width(),a.height(),b.width(),b.height())
+        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<size*0.45
+        val f0=first.points.first();val f1=first.points.last();val s0=second.points.first();val s1=second.points.last()
+        val slope1=(f1.x-f0.x)*(f1.y-f0.y);val slope2=(s1.x-s0.x)*(s1.y-s0.y)
+        if(!near||slope1*slope2>=0){pendingXIndex=null;return false}
+        val cx=(cx1+cx2)/2f;val cy=(cy1+cy2)/2f;val half=maxOf(dp(14f),size/2f)
+        strokes.removeAt(idx)
+        val xStroke=Stroke(listOf(PointF(cx-half,cy-half),PointF(cx+half,cy+half)),false,true)
+        strokes.add(xStroke);pendingXIndex=null
+        onSyncMessage?.invoke("U");sendStroke(xStroke)
+        return true
+    }
     private fun sendStroke(s:Stroke){
-        val usable=(height-toolbarHeight).coerceAtLeast(1f);val msg=buildString{append("S|");append(if(s.erase)"1" else "0");s.points.forEach{append("|");append(it.x/width);append(",");append(it.y/usable)}}
+        val usable=(height-toolbarHeight).coerceAtLeast(1f);val msg=buildString{append(if(s.autoX)"X|" else "S|");append(if(s.erase)"1" else "0");s.points.forEach{append("|");append(it.x/width);append(",");append(it.y/usable)}}
         onSyncMessage?.invoke(msg)
     }
     fun applyRemoteMessage(m:String){
         val p=m.split("|");when(p.firstOrNull()){
-            "S"->{val erase=p.getOrNull(1)=="1";val pts=mutableListOf<PointF>();val usable=(height-toolbarHeight).coerceAtLeast(1f)
+            "S","X"->{val erase=p.getOrNull(1)=="1";val pts=mutableListOf<PointF>();val usable=(height-toolbarHeight).coerceAtLeast(1f)
                 for(i in 2 until p.size){val xy=p[i].split(",");if(xy.size==2){val nx=xy[0].toFloatOrNull();val ny=xy[1].toFloatOrNull();if(nx!=null&&ny!=null)pts.add(PointF(nx*width,ny*usable))}}
-                if(pts.isNotEmpty())strokes.add(Stroke(pts,erase))}
+                if(pts.isNotEmpty())strokes.add(Stroke(pts,erase,p.firstOrNull()=="X"))}
             "U"->if(strokes.isNotEmpty())strokes.removeAt(strokes.lastIndex)
             "C"->strokes.clear()
         };invalidate()
@@ -84,7 +120,7 @@ class TacticsBoardView(context: Context) : View(context) {
     fun setConnected(v:Boolean){connected=v;invalidate()}
     private fun toolbarTap(x:Float){
         val bw=(width-buttonGap*5)/4;val i=((x-buttonGap)/(bw+buttonGap)).toInt().coerceIn(0,3)
-        when(i){0->eraserMode=false;1->eraserMode=true;2->if(strokes.isNotEmpty()){strokes.removeAt(strokes.lastIndex);onSyncMessage?.invoke("U")};3->{strokes.clear();onSyncMessage?.invoke("C")}}
+        when(i){0->eraserMode=false;1->eraserMode=true;2->if(strokes.isNotEmpty()){strokes.removeAt(strokes.lastIndex);pendingXIndex=null;onSyncMessage?.invoke("U")};3->{strokes.clear();pendingXIndex=null;onSyncMessage?.invoke("C")}}
         invalidate()
     }
     private fun dp(v:Float)=v*resources.displayMetrics.density
