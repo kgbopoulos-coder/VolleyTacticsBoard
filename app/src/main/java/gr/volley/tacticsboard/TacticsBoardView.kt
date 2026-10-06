@@ -13,7 +13,7 @@ class TacticsBoardView(context: Context) : View(context) {
 
     private val strokes = mutableListOf<Stroke>()
     private var currentPath: Path? = null
-    private var eraserMode = false
+    private var eraserMode = false\n    var onSyncMessage: ((String) -> Unit)? = null\n    private var connected = false\n    private var applyingRemote = false
 
     private val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(25, 25, 25)
@@ -55,7 +55,7 @@ class TacticsBoardView(context: Context) : View(context) {
         currentPath?.let { canvas.drawPath(it, if (eraserMode) erasePaint else drawPaint) }
         canvas.restoreToCount(save)
 
-        drawToolbar(canvas)
+        drawToolbar(canvas)\n        drawConnection(canvas)
     }
 
     private fun drawCourt(canvas: Canvas) {
@@ -79,7 +79,7 @@ class TacticsBoardView(context: Context) : View(context) {
         canvas.drawLine(left, midY + attackOffset, right, midY + attackOffset, courtPaint)
     }
 
-    private fun drawToolbar(canvas: Canvas) {
+    private fun drawConnection(canvas: Canvas) {\n        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (connected) Color.rgb(30,150,70) else Color.rgb(190,45,45); textSize = dp(11f); typeface = Typeface.DEFAULT_BOLD }\n        canvas.drawText(if (connected) "● ΣΥΝΔΕΔΕΜΕΝΟ" else "● ΧΩΡΙΣ ΣΥΝΔΕΣΗ", dp(12f), dp(14f), p)\n    }\n\n    fun setConnected(value: Boolean) { connected = value; invalidate() }\n\n    fun applyRemoteMessage(message: String) {\n        applyingRemote = true\n        try {\n            val p = message.split("|")\n            when (p.firstOrNull()) {\n                "S" -> {\n                    val erase = p.getOrNull(1) == "1"; val path = Path(); var first = true\n                    p.drop(2).forEach { pair -> val xy=pair.split(","); if(xy.size==2){ val x=xy[0].toFloatOrNull(); val y=xy[1].toFloatOrNull(); if(x!=null&&y!=null){if(first){path.moveTo(x*width,y*(height-toolbarHeight));first=false}else path.lineTo(x*width,y*(height-toolbarHeight))}} }\n                    if(!first) strokes.add(Stroke(path,erase))\n                }\n                "U" -> if(strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex)\n                "C" -> strokes.clear()\n            }; invalidate()\n        } finally { applyingRemote=false }\n    }\n\n    private fun encodeStroke(path: Path, erase: Boolean): String {\n        val pm=PathMeasure(path,false); val len=pm.length; val pos=FloatArray(2); val parts=mutableListOf<String>(); var d=0f\n        while(d<=len){pm.getPosTan(d,pos,null);parts.add("${pos[0]/width},${pos[1]/(height-toolbarHeight)}");d+=dp(4f)}\n        if(parts.isEmpty()){pm.getPosTan(0f,pos,null);parts.add("${pos[0]/width},${pos[1]/(height-toolbarHeight)}")}\n        return "S|" + (if(erase)"1" else "0") + "|" + parts.joinToString("|")\n    }\n\n    private fun drawToolbar(canvas: Canvas) {
         val top = height - toolbarHeight
         val bg = Paint().apply { color = Color.rgb(244,244,244) }
         canvas.drawRect(0f, top, width.toFloat(), height.toFloat(), bg)
@@ -127,7 +127,7 @@ class TacticsBoardView(context: Context) : View(context) {
                 invalidate()
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                currentPath?.let { strokes.add(Stroke(it, eraserMode)) }
+                currentPath?.let { strokes.add(Stroke(it, eraserMode)); if(!applyingRemote) onSyncMessage?.invoke(encodeStroke(it, eraserMode)) }
                 currentPath = null
                 invalidate()
             }
@@ -142,8 +142,8 @@ class TacticsBoardView(context: Context) : View(context) {
         when (index) {
             0 -> eraserMode = false
             1 -> eraserMode = true
-            2 -> if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex)
-            3 -> strokes.clear()
+            2 -> if (strokes.isNotEmpty()) { strokes.removeAt(strokes.lastIndex); if(!applyingRemote) onSyncMessage?.invoke("U") }
+            3 -> { strokes.clear(); if(!applyingRemote) onSyncMessage?.invoke("C") }
         }
         invalidate()
     }
