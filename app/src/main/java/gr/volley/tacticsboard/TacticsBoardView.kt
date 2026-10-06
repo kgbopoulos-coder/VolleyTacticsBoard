@@ -10,7 +10,8 @@ import kotlin.math.min
 class TacticsBoardView(context: Context) : View(context) {
     private data class Stroke(val points: List<PointF>, val erase: Boolean, val autoX: Boolean = false)
     private val strokes = mutableListOf<Stroke>()
-    private val current = mutableListOf<PointF>()\n    private var pendingXIndex: Int? = null
+    private val current = mutableListOf<PointF>()
+    private var pendingXIndex: Int? = null
     private var eraserMode = false
     private var connected = false
     var onSyncMessage: ((String) -> Unit)? = null
