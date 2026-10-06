@@ -2,7 +2,7 @@ package gr.volley.tacticsboard
 
 import android.content.Context
 import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
+import android.net.nsd.NsdServiceInfo\nimport android.net.wifi.WifiManager
 import java.io.*
 import java.net.ServerSocket
 import java.net.Socket
@@ -11,7 +11,7 @@ import kotlin.concurrent.thread
 
 class LocalBoardSync(context: Context, private val listener: Listener) {
     interface Listener { fun onPeerState(connected: Boolean); fun onMessage(message: String) }
-    private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager\n    private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager\n    private var multicastLock: WifiManager.MulticastLock? = null
     private val serviceType = "_volleyboard._tcp."
     private val serviceName = "VolleyTacticsBoard-" + java.util.UUID.randomUUID().toString().take(8)
     private val clients = CopyOnWriteArrayList<Socket>()
@@ -60,5 +60,5 @@ class LocalBoardSync(context: Context, private val listener: Listener) {
         }
     }
     fun send(m:String){ clients.toList().forEach{s->thread{try{PrintWriter(BufferedWriter(OutputStreamWriter(s.getOutputStream())),true).println(m)}catch(_:Exception){clients.remove(s)}}} }
-    fun stop(){try{discovery?.let{nsd.stopServiceDiscovery(it)}}catch(_:Exception){};try{registration?.let{nsd.unregisterService(it)}}catch(_:Exception){};clients.forEach{try{it.close()}catch(_:Exception){}};try{server?.close()}catch(_:Exception){}}
+    fun stop(){try{discovery?.let{nsd.stopServiceDiscovery(it)}}catch(_:Exception){};try{registration?.let{nsd.unregisterService(it)}}catch(_:Exception){};clients.forEach{try{it.close()}catch(_:Exception){}};try{server?.close()}catch(_:Exception){};try{multicastLock?.release()}catch(_:Exception){}}
 }
