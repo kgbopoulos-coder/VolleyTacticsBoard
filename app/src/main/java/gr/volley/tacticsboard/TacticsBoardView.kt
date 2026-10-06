@@ -94,11 +94,15 @@ class TacticsBoardView(context: Context) : View(context) {
         val first=strokes[idx];val a=bounds(first);val b=bounds(second)
         val cx1=a.centerX();val cy1=a.centerY();val cx2=b.centerX();val cy2=b.centerY()
         val size=maxOf(a.width(),a.height(),b.width(),b.height())
-        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<size*0.45
+        // Generous recognition for fast timeout drawing: centers only need to be in the same area.
+        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<maxOf(dp(45f),(size*0.85f).toDouble())
         val f0=first.points.first();val f1=first.points.last();val s0=second.points.first();val s1=second.points.last()
-        val slope1=(f1.x-f0.x)*(f1.y-f0.y);val slope2=(s1.x-s0.x)*(s1.y-s0.y)
-        if(!near||slope1*slope2>=0){pendingXIndex=null;return false}
-        val cx=(cx1+cx2)/2f;val cy=(cy1+cy2)/2f;val half=maxOf(dp(14f),size/2f)
+        val dx1=f1.x-f0.x;val dy1=f1.y-f0.y;val dx2=s1.x-s0.x;val dy2=s1.y-s0.y
+        val opposite=(dx1*dy1)*(dx2*dy2)<0
+        if(!near||!opposite){pendingXIndex=null;return false}
+        val cx=(cx1+cx2)/2f;val cy=(cy1+cy2)/2f
+        val avgSize=(maxOf(a.width(),a.height())+maxOf(b.width(),b.height()))/2f
+        val half=maxOf(dp(14f),avgSize/2f)
         strokes.removeAt(idx)
         val xStroke=Stroke(listOf(PointF(cx-half,cy-half),PointF(cx+half,cy+half)),false,true)
         strokes.add(xStroke);pendingXIndex=null
