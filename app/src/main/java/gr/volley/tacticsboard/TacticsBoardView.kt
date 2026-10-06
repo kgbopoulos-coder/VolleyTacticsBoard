@@ -95,7 +95,7 @@ class TacticsBoardView(context: Context) : View(context) {
         val cx1=a.centerX();val cy1=a.centerY();val cx2=b.centerX();val cy2=b.centerY()
         val size=maxOf(a.width(),a.height(),b.width(),b.height())
         // Generous recognition for fast timeout drawing: centers only need to be in the same area.
-        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<maxOf(dp(45f),(size*0.85f).toDouble())
+        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<maxOf(dp(45f).toDouble(),(size*0.85f).toDouble())
         val f0=first.points.first();val f1=first.points.last();val s0=second.points.first();val s1=second.points.last()
         val dx1=f1.x-f0.x;val dy1=f1.y-f0.y;val dx2=s1.x-s0.x;val dy2=s1.y-s0.y
         val opposite=(dx1*dy1)*(dx2*dy2)<0
