@@ -83,32 +83,79 @@ class TacticsBoardView(context: Context) : View(context) {
         s.points.forEach{l=minOf(l,it.x);t=minOf(t,it.y);r=maxOf(r,it.x);b=maxOf(b,it.y)}
         return RectF(l,t,r,b)
     }
-    private fun isDiagonal(s:Stroke):Boolean{
-        if(s.erase||s.points.size<2)return false
-        val q=bounds(s);if(q.width()<dp(12f)||q.height()<dp(12f))return false
-        val ratio=q.width()/q.height();return ratio in 0.45f..2.2f
+    private fun lineDirection(s: Stroke): PointF? {
+        if (s.erase || s.points.size < 2) return null
+        val a = s.points.first()
+        val b = s.points.last()
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        if (kotlin.math.hypot(dx.toDouble(), dy.toDouble()) < dp(18f)) return null
+        return PointF(dx, dy)
     }
-    private fun tryMakeSymmetricX(second:Stroke):Boolean{
-        val idx=pendingXIndex?:return false
-        if(idx !in strokes.indices||!isDiagonal(second)){pendingXIndex=null;return false}
-        val first=strokes[idx];val a=bounds(first);val b=bounds(second)
-        val cx1=a.centerX();val cy1=a.centerY();val cx2=b.centerX();val cy2=b.centerY()
-        val size=maxOf(a.width(),a.height(),b.width(),b.height())
-        // Generous recognition for fast timeout drawing: centers only need to be in the same area.
-        val near=kotlin.math.hypot((cx1-cx2).toDouble(),(cy1-cy2).toDouble())<maxOf(dp(45f).toDouble(),(size*0.85f).toDouble())
-        val f0=first.points.first();val f1=first.points.last();val s0=second.points.first();val s1=second.points.last()
-        val dx1=f1.x-f0.x;val dy1=f1.y-f0.y;val dx2=s1.x-s0.x;val dy2=s1.y-s0.y
-        val opposite=(dx1*dy1)*(dx2*dy2)<0
-        if(!near||!opposite){pendingXIndex=null;return false}
-        val cx=(cx1+cx2)/2f;val cy=(cy1+cy2)/2f
-        val avgSize=(maxOf(a.width(),a.height())+maxOf(b.width(),b.height()))/2f
-        val half=maxOf(dp(14f),avgSize/2f)
+
+    private fun isDiagonal(s: Stroke): Boolean {
+        val d = lineDirection(s) ?: return false
+        val ax = kotlin.math.abs(d.x)
+        val ay = kotlin.math.abs(d.y)
+        // Wide angle tolerance: intended for quick hand-drawn X marks.
+        return ax > dp(8f) && ay > dp(8f) && ax / ay in 0.25f..4f
+    }
+
+    private fun tryMakeSymmetricX(second: Stroke): Boolean {
+        val idx = pendingXIndex ?: return false
+        if (idx !in strokes.indices || !isDiagonal(second)) {
+            pendingXIndex = null
+            return false
+        }
+        val first = strokes[idx]
+        if (!isDiagonal(first)) {
+            pendingXIndex = null
+            return false
+        }
+
+        val d1 = lineDirection(first) ?: return false
+        val d2 = lineDirection(second) ?: return false
+        // One diagonal must rise while the other falls. Direction of finger travel does not matter.
+        val sign1 = d1.x * d1.y
+        val sign2 = d2.x * d2.y
+        if (sign1 * sign2 >= 0f) {
+            pendingXIndex = null
+            return false
+        }
+
+        val a = bounds(first)
+        val b = bounds(second)
+        val pad = dp(35f)
+        val overlap = a.left <= b.right + pad && a.right + pad >= b.left &&
+                a.top <= b.bottom + pad && a.bottom + pad >= b.top
+        if (!overlap) {
+            pendingXIndex = null
+            return false
+        }
+
+        val left = minOf(a.left, b.left)
+        val right = maxOf(a.right, b.right)
+        val top = minOf(a.top, b.top)
+        val bottom = maxOf(a.bottom, b.bottom)
+        val cx = (left + right) / 2f
+        val cy = (top + bottom) / 2f
+        val half = maxOf(dp(16f), maxOf(right - left, bottom - top) / 2f)
+
         strokes.removeAt(idx)
-        val xStroke=Stroke(listOf(PointF(cx-half,cy-half),PointF(cx+half,cy+half)),false,true)
-        strokes.add(xStroke);pendingXIndex=null
-        onSyncMessage?.invoke("U");sendStroke(xStroke)
+        val xStroke = Stroke(
+            listOf(PointF(cx - half, cy - half), PointF(cx + half, cy + half)),
+            false,
+            true
+        )
+        strokes.add(xStroke)
+        pendingXIndex = null
+
+        // Replace the first freehand diagonal on the peer with the single symmetric X.
+        onSyncMessage?.invoke("U")
+        sendStroke(xStroke)
         return true
     }
+
     private fun sendStroke(s:Stroke){
         val usable=(height-toolbarHeight).coerceAtLeast(1f);val msg=buildString{append(if(s.autoX)"X|" else "S|");append(if(s.erase)"1" else "0");s.points.forEach{append("|");append(it.x/width);append(",");append(it.y/usable)}}
         onSyncMessage?.invoke(msg)
